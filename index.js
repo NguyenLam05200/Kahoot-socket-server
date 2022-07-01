@@ -3,6 +3,7 @@ var app = express();
 var server = app.listen(8080, () => {
     console.log('listening on 8080');
 });
+
 var io = require('socket.io')(server, {
     cors: {
         origin: '*',
@@ -10,15 +11,10 @@ var io = require('socket.io')(server, {
 });
 let listPinCurrents = [];
 let listRoomKahuts = new Map();
-// let listHosts = new Map();
 
 function getRndInteger(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
 
 io.on('connection', (socket) => {
     console.log('a user connected');
@@ -42,7 +38,6 @@ io.on('connection', (socket) => {
             listQuestions: listQuestions,
             listPlayer: new Map(),
         })
-        // listHosts.set(socket.id, newPin)
 
         socket.join(newPin);
         socket.host = newPin;
@@ -53,6 +48,8 @@ io.on('connection', (socket) => {
     socket.on('BLOCK_JOIN', () => {
         listRoomKahuts.get(socket.host).acceptJoin = !listRoomKahuts.get(socket.host).acceptJoin;
     });
+    // end action for host.
+
 
     // player:
     socket.on('ENTER_PIN', (pinInput) => {
@@ -87,6 +84,7 @@ io.on('connection', (socket) => {
         socket.name = nameInput;
         io.to(listRoomKahuts.get(socket.pin).hostId).emit('PLAYER_JOIN', { id: socket.id, name: nameInput })
     });
+    // end action for player.
 
     socket.on('disconnect', () => {
 
