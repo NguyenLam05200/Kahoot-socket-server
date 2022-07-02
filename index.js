@@ -32,11 +32,10 @@ function getRndInteger(min, max) {
 }
 
 io.on('connection', (socket) => {
-    console.log('a user connected');
-    console.log('id of client: ', socket.id);
+    console.log(`${socket.id} connected`);
 
     socket.on('HAND_SHAKE', () => {
-        io.to(socket.id).emit('HAND_SHAKE', 'hehe');
+        io.to(socket.id).emit('HAND_SHAKE');
     });
 
     /**
@@ -75,6 +74,8 @@ io.on('connection', (socket) => {
 
     socket.on('START_GAME', () => {
         // socket.to("room1").emit(/* ... */);
+        listRoomKahuts.get(socket.host).acceptJoin = false;
+
         socket.to(socket.host).emit('START_GAME');
         setTimeout(function () {
             io.in(socket.host).emit('READ_QUESTION', {
@@ -104,8 +105,8 @@ io.on('connection', (socket) => {
                 listQues = listQues.map((eachQuestion) => {
                     return {
                         type: eachQuestion.type,
-                        time: eachQuestion.time,
-                        ansAmount: eachQuestion.ans.length,
+                        timeLimit: eachQuestion.time,
+                        totalAns: eachQuestion.ans.length,
                     }
                 });
 
@@ -149,6 +150,6 @@ io.on('connection', (socket) => {
             socket.leave(playerPin)
         }
 
-        console.log('user disconnected');
+        console.log(`${socket.id} disconnected`);
     });
 });
