@@ -10,7 +10,7 @@ var io = require('socket.io')(server, {
     }
 });
 
-const timeGetReady = 2000; //2s
+const timeGetReady = 0; //2s
 const timeReadQuestion = 2000;
 
 let listPinCurrents = [];
@@ -127,6 +127,11 @@ io.on('connection', (socket) => {
         listRoomKahuts.get(socket.pin).listPlayer.set(socket.id, { name: nameInput, score: 0 })
         socket.name = nameInput;
         io.to(listRoomKahuts.get(socket.pin).hostId).emit('PLAYER_JOIN', { id: socket.id, name: nameInput })
+    });
+
+    socket.on('SEND_ANSWER', (ans) => {
+        console.log('ans: ', ans);
+        io.to(listRoomKahuts.get(socket.pin).hostId).emit('SEND_ANSWER')
     });
     // end action for player.
 
