@@ -12,6 +12,7 @@ var io = require('socket.io')(server, {
 
 const timeGetReady = 0; //2s
 const timeReadQuestion = 2000;
+const pointStandard = 1000;
 
 let listPinCurrents = [];
 let listRoomKahuts = new Map();
@@ -59,6 +60,8 @@ io.on('connection', (socket) => {
                 curQuestion: 0,
                 listQuestions: listQuestions,
                 listPlayer: new Map(),
+                listAnsReceived: [],
+                listEmit: [],
             }
         )
 
@@ -83,6 +86,36 @@ io.on('connection', (socket) => {
                 timeReadQuestion: timeReadQuestion
             });
         }, timeGetReady);
+    });
+
+    // NEXT and SKIP may be similiar ???
+    socket.on('NEXT', () => {
+        listRoomKahuts.get(socket.host).curQuestion += 1
+        io.in(socket.host).emit('READ_QUESTION', {
+            indexQuestion: listRoomKahuts.get(socket.host).curQuestion,
+            timeReadQuestion: timeReadQuestion
+        });
+        //reset 
+        listRoomKahuts.get(socket.host).listAnsReceived = []
+        listRoomKahuts.get(socket.host).listEmit = []
+    });
+
+    socket.on('SKIP', () => {
+        listRoomKahuts.get(socket.host).curQuestion += 1
+        io.in(socket.host).emit('READ_QUESTION', {
+            indexQuestion: listRoomKahuts.get(socket.host).curQuestion,
+            timeReadQuestion: timeReadQuestion
+        });
+        //reset 
+        listRoomKahuts.get(socket.host).listAnsReceived = []
+        listRoomKahuts.get(socket.host).listEmit = []
+
+    });
+
+    socket.on('SHOW_RESULT', () => {
+        listRoomKahuts.get(socket.host).listEmit.map(eachEmi => {
+            io.to(eachEmi.to).emit(eachEmi.type, eachEmi.scorePlus)
+        })
     });
 
     // end action for host.
@@ -130,8 +163,31 @@ io.on('connection', (socket) => {
     });
 
     socket.on('SEND_ANSWER', (ans) => {
-        console.log('ans: ', ans);
-        io.to(listRoomKahuts.get(socket.pin).hostId).emit('SEND_ANSWER')
+        let roomKahut = listRoomKahuts.get(socket.pin)
+
+        io.to(roomKahut.hostId).emit('SEND_ANSWER', ans)
+
+        const questionCurrent = roomKahut.listQuestions[roomKahut.curQuestion];
+        // xét đúng sai
+        if (compareResult(ans, questionCurrent.correctAns)) {
+            // True => tính điểm
+            const timestamp = Date.now();
+
+            const len = roomKahut.listAnsReceived.length
+            if (len === 0) {
+                //first answer:
+                // io.to(socket.id).emit('RESULT', pointStandard)
+                roomKahut.listPlayer.get(socket.id).score += pointStandard;
+                roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: pointStandard });
+            } else {
+                const point = pointStandard - (pointStandard / (questionCurrent.time * 1000)) * (timestamp - roomKahut.listAnsReceived[len - 1])
+                roomKahut.listPlayer.get(socket.id).score += point.toFixed();
+                roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: point.toFixed() });
+            }
+            roomKahut.listAnsReceived.push(timestamp);
+        } else {
+            roomKahut.listEmit.push({ to: socket.id, type: 'INCORRECT', scorePlus: '' });
+        }
     });
     // end action for player.
 
@@ -154,7 +210,12 @@ io.on('connection', (socket) => {
             }
             socket.leave(playerPin)
         }
-
         console.log(`${socket.id} disconnected`);
     });
 });
+
+function compareResult(arr1, arr2) {
+    arr1 = arr1.sort()
+    arr2 = arr2.sort()
+    return arr1.join() == arr2.join();
+}
