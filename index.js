@@ -23,7 +23,7 @@ let listRoomKahuts = new Map();
  *          acceptJoin: true,
  *          curQuestion: 0,
  *          listQuestions: listQuestions,
- *          listPlayer: {key: socket.id, value: { name: 'Player XYZ', score: 0 }}
+ *          listPlayers: {key: socket.id, value: { name: 'Player XYZ', score: 0 }}
  *          // key is socket instance of player id (socket.id)
  * }
  */
@@ -59,7 +59,7 @@ io.on('connection', (socket) => {
                 acceptJoin: true,
                 curQuestion: 0,
                 listQuestions: listQuestions,
-                listPlayer: new Map(),
+                listPlayers: new Map(),
                 listAnsReceived: [],
                 listEmit: [],
             }
@@ -118,6 +118,40 @@ io.on('connection', (socket) => {
         })
     });
 
+    socket.on('SCORE_BOARD', () => {
+        let mapPlayer = listRoomKahuts.get(socket.host).listPlayers;
+        /**
+         * Example of sort map in javascript:
+         * let map = new Map([[4, {name: 'Lam', score: 100}], [3, {name: 'Thanh', score: 300}], [5, {name: 'Alex', score: 200}], [1, {name: 'Nga', score: 1000}]])
+         * map = new Map([...map.entries()].sort((a, b) => b[1].score - a[1].score));
+         * Output:
+         *  0: {1 => Object}
+            key: 1
+            value: {name: 'Nga', score: 1000}
+            1: {3 => Object}
+            key: 3
+            value: {name: 'Thanh', score: 300}
+            2: {5 => Object}
+            key: 5
+            value: {name: 'Alex', score: 200}
+            3: {4 => Object}
+            key: 4
+            value: {name: 'Lam', score: 100}
+         */
+        // sort giam dan theo diem so
+        mapPlayer = new Map([...mapPlayer.entries()].sort((a, b) => b[1].score - a[1].score));
+
+        let res = []
+        let itr = mapPlayer.values();
+        for (i = 0; i < 5; i++) {
+            const eachScoreBoard = itr.next().value;
+            if (eachScoreBoard && eachScoreBoard.score !== 0) {
+                res.push(eachScoreBoard)
+            }
+        }
+        io.to(socket.id).emit('SCORE_BOARD', res)
+    });
+
     // end action for host.
 
 
@@ -157,7 +191,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('ENTER_NAME', (nameInput) => {
-        listRoomKahuts.get(socket.pin).listPlayer.set(socket.id, { name: nameInput, score: 0 })
+        listRoomKahuts.get(socket.pin).listPlayers.set(socket.id, { name: nameInput, score: 0 })
         socket.name = nameInput;
         io.to(listRoomKahuts.get(socket.pin).hostId).emit('PLAYER_JOIN', { id: socket.id, name: nameInput })
     });
@@ -177,12 +211,12 @@ io.on('connection', (socket) => {
             if (len === 0) {
                 //first answer:
                 // io.to(socket.id).emit('RESULT', pointStandard)
-                roomKahut.listPlayer.get(socket.id).score += pointStandard;
+                roomKahut.listPlayers.get(socket.id).score += pointStandard;
                 roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: pointStandard });
             } else {
-                const point = pointStandard - (pointStandard / (questionCurrent.time * 1000)) * (timestamp - roomKahut.listAnsReceived[len - 1])
-                roomKahut.listPlayer.get(socket.id).score += point.toFixed();
-                roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: point.toFixed() });
+                const point = Math.floor(pointStandard - (pointStandard / (questionCurrent.time * 1000)) * (timestamp - roomKahut.listAnsReceived[len - 1]))
+                roomKahut.listPlayers.get(socket.id).score += point;
+                roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: point });
             }
             roomKahut.listAnsReceived.push(timestamp);
         } else {
@@ -205,7 +239,7 @@ io.on('connection', (socket) => {
         const playerPin = socket.pin;
         if (playerPin) {
             if (listRoomKahuts.get(playerPin)) {
-                listRoomKahuts.get(playerPin).listPlayer.delete(socket.id)
+                listRoomKahuts.get(playerPin).listPlayers.delete(socket.id)
                 io.to(listRoomKahuts.get(socket.pin).hostId).emit('PLAYER_LEAVE', socket.id)
             }
             socket.leave(playerPin)
