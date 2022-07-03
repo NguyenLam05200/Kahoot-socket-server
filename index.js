@@ -88,9 +88,9 @@ io.on('connection', (socket) => {
         }, timeGetReady);
     });
 
-    // NEXT and SKIP may be similiar ???
-    socket.on('NEXT', () => {
+    socket.on('NEXT_QUESTION', () => {
         listRoomKahuts.get(socket.host).curQuestion += 1
+
         io.in(socket.host).emit('READ_QUESTION', {
             indexQuestion: listRoomKahuts.get(socket.host).curQuestion,
             timeReadQuestion: timeReadQuestion
@@ -114,7 +114,12 @@ io.on('connection', (socket) => {
         let mapPlayer = listRoomKahuts.get(socket.host).listPlayers;
         /**
          * Example of sort map in javascript:
-         * let map = new Map([[4, {name: 'Lam', score: 100}], [3, {name: 'Thanh', score: 300}], [5, {name: 'Alex', score: 200}], [1, {name: 'Nga', score: 1000}]])
+         * let map = new Map([
+         *                  [4, {name: 'Lam', score: 100}], 
+         *                  [3, {name: 'Thanh', score: 300}], 
+         *                  [5, {name: 'Alex', score: 200}], 
+         *                  [1, {name: 'Nga', score: 1000}]
+         *                  ])
          * map = new Map([...map.entries()].sort((a, b) => b[1].score - a[1].score));
          * Output:
          *  0: {1 => Object}
@@ -156,7 +161,7 @@ io.on('connection', (socket) => {
      * }
      */
     socket.on('ENTER_PIN', (pinInput) => {
-        pinInput = parseInt(pinInput)
+        pinInput = parseInt(pinInput.split(' ').join(''))
 
         if (listPinCurrents.includes(pinInput)) {
             if (listRoomKahuts.get(pinInput).acceptJoin) {
@@ -222,6 +227,7 @@ io.on('connection', (socket) => {
         const hostPin = socket.host;
 
         if (hostPin) {
+            socket.to(socket.host).emit('HOST_LEAVE');
             listRoomKahuts.delete(hostPin);
             var myIndex = listPinCurrents.indexOf(hostPin);
             if (myIndex !== -1) {
