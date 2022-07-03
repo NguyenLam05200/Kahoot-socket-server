@@ -101,15 +101,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('SKIP', () => {
-        listRoomKahuts.get(socket.host).curQuestion += 1
-        io.in(socket.host).emit('READ_QUESTION', {
-            indexQuestion: listRoomKahuts.get(socket.host).curQuestion,
-            timeReadQuestion: timeReadQuestion
-        });
-        //reset 
-        listRoomKahuts.get(socket.host).listAnsReceived = []
-        listRoomKahuts.get(socket.host).listEmit = []
-
+        socket.to(socket.host).emit('SKIP');
     });
 
     socket.on('SHOW_RESULT', () => {
