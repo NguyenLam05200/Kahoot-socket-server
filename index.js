@@ -114,6 +114,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('SHOW_RESULT', () => {
+        socket.to(socket.host).emit('TIME_UP')
         listRoomKahuts.get(socket.host).listEmit.map(eachEmi => {
             io.to(eachEmi.to).emit(eachEmi.type, eachEmi.scorePlus)
         })
@@ -212,6 +213,19 @@ io.on('connection', (socket) => {
 
     socket.on('SUMARY', () => {
         socket.to(socket.host).emit('SUMARY');
+    });
+
+    socket.on('PLAY_AGAIN', () => {
+        // socket.to("room1").emit(/* ... */);
+        const roomPersist = listRoomKahuts.get(socket.host)
+        roomPersist.listQuestions.filter(eachQuestion => delete eachQuestion.correctCount)
+        roomPersist.timeStart = null
+        roomPersist.acceptJoin = true
+        roomPersist.curQuestion = 0
+        roomPersist.listAnsReceived = []
+        roomPersist.listEmit = []
+
+        socket.to(socket.host).emit('PLAY_AGAIN')
     });
 
     // end action for host.
