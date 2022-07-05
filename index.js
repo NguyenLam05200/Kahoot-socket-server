@@ -20,10 +20,11 @@ let listRoomKahuts = new Map();
  * key: PIN
  * value: {
  *          hostId: socket.id,
+ *          timeStart: time start game // data for report
  *          acceptJoin: true,
  *          curQuestion: 0,
  *          listQuestions: listQuestions,
- *          listPlayers: {key: socket.id, value: { name: 'Player XYZ', score: 0 }}
+ *          listPlayers: {key: socket.id, value: { name: 'Player XYZ', score: 0, ansCorrect: [] }}
  *          // key is socket instance of player id (socket.id)
  * }
  */
@@ -56,6 +57,7 @@ io.on('connection', (socket) => {
             newPin,
             {
                 hostId: socket.id,
+                timeStart: null,
                 acceptJoin: true,
                 curQuestion: 0,
                 listQuestions: listQuestions,
@@ -78,6 +80,7 @@ io.on('connection', (socket) => {
     socket.on('START_GAME', () => {
         // socket.to("room1").emit(/* ... */);
         listRoomKahuts.get(socket.host).acceptJoin = false;
+        listRoomKahuts.get(socket.host).timeStart = Date.now();
 
         socket.to(socket.host).emit('START_GAME');
         setTimeout(function () {
@@ -91,6 +94,7 @@ io.on('connection', (socket) => {
     socket.on('NEXT_QUESTION', () => {
         listRoomKahuts.get(socket.host).curQuestion += 1
 
+
         io.in(socket.host).emit('READ_QUESTION', {
             indexQuestion: listRoomKahuts.get(socket.host).curQuestion,
             timeReadQuestion: timeReadQuestion
@@ -101,12 +105,25 @@ io.on('connection', (socket) => {
     });
 
     socket.on('SKIP', () => {
+        const roomPersist = listRoomKahuts.get(socket.host);
+        roomPersist.listQuestions[roomPersist.curQuestion].correctCount = -1;
+        roomPersist.listEmit.map(eachEmi => {
+            io.to(eachEmi.to).emit(eachEmi.type, eachEmi.scorePlus)
+        })
         socket.to(socket.host).emit('SKIP');
     });
 
     socket.on('SHOW_RESULT', () => {
         listRoomKahuts.get(socket.host).listEmit.map(eachEmi => {
             io.to(eachEmi.to).emit(eachEmi.type, eachEmi.scorePlus)
+        })
+        const curQuestionIndex = listRoomKahuts.get(socket.host).curQuestion;
+
+        listRoomKahuts.get(socket.host).listEmit.map(eachEmi => {
+            if (eachEmi.type === 'CORRECT') {
+                listRoomKahuts.get(socket.host).listPlayers.get(eachEmi.to).score += eachEmi.scorePlus;
+                listRoomKahuts.get(socket.host).listPlayers.get(eachEmi.to).correctAns.push(curQuestionIndex);
+            }
         })
     });
 
@@ -146,7 +163,55 @@ io.on('connection', (socket) => {
                 res.push(eachScoreBoard)
             }
         }
-        io.to(socket.id).emit('SCORE_BOARD', res)
+        const roomPersist = listRoomKahuts.get(socket.host);
+
+        const curQuestionIndex = roomPersist.curQuestion + 1;
+        if (curQuestionIndex >= roomPersist.listQuestions.length) {
+            //trigger for all players drum on ...
+            socket.to(socket.host).emit('PREPARE_SUMARY');
+
+            // prepare sumary for host
+            let reportData = [];
+            let tuTotal = 0;
+            let mauTotal = 0;
+            let percentRightTotal = 0;
+
+            const sumPlayers = roomPersist.listPlayers.size;
+            roomPersist.listQuestions.map((eachQuestion, index) => {
+                if (eachQuestion.correctCount === -1) {
+                    reportData.push([index, 101])
+                } else {
+                    tuTotal += eachQuestion.correctCount;
+                    mauTotal += sumPlayers;
+                    reportData.push([index, Math.floor(eachQuestion.correctCount * 100 / sumPlayers)])
+                }
+            })
+
+            if (mauTotal !== 0) { //all questions is not skiped
+                percentRightTotal = Math.floor(tuTotal * 100 / mauTotal)
+            }
+
+            io.to(socket.id).emit(
+                'PREPARE_SUMARY',
+                {
+                    rating: res,
+                    reportData: reportData.sort(sortFunction),
+                    percentRightTotal: percentRightTotal
+                })
+
+            // prepare sumary for each player
+            let itr2 = mapPlayer.keys();
+            for (i = 0; i < mapPlayer.size; i++) {
+                const playerSocketId = itr2.next().value
+                io.to(playerSocketId).emit('SUMARY_DATA', i + 1);
+            }
+        } else {
+            io.to(socket.id).emit('SCORE_BOARD', res)
+        }
+    });
+
+    socket.on('SUMARY', () => {
+        socket.to(socket.host).emit('SUMARY');
     });
 
     // end action for host.
@@ -188,7 +253,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('ENTER_NAME', (nameInput) => {
-        listRoomKahuts.get(socket.pin).listPlayers.set(socket.id, { name: nameInput, score: 0 })
+        listRoomKahuts.get(socket.pin).listPlayers.set(socket.id, { name: nameInput, score: 0, correctAns: [] })
         socket.name = nameInput;
         io.to(listRoomKahuts.get(socket.pin).hostId).emit('PLAYER_JOIN', { id: socket.id, name: nameInput })
     });
@@ -208,12 +273,12 @@ io.on('connection', (socket) => {
             if (len === 0) {
                 //first answer:
                 // io.to(socket.id).emit('RESULT', pointStandard)
-                roomKahut.listPlayers.get(socket.id).score += pointStandard;
                 roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: pointStandard });
+                roomKahut.listQuestions[roomKahut.curQuestion].correctCount = 1;
             } else {
                 const point = Math.floor(pointStandard - (pointStandard / (questionCurrent.time * 1000)) * (timestamp - roomKahut.listAnsReceived[len - 1]))
-                roomKahut.listPlayers.get(socket.id).score += point;
                 roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: point });
+                roomKahut.listQuestions[roomKahut.curQuestion].correctCount += 1;
             }
             roomKahut.listAnsReceived.push(timestamp);
         } else {
@@ -250,4 +315,12 @@ function compareResult(arr1, arr2) {
     arr1 = arr1.sort()
     arr2 = arr2.sort()
     return arr1.join() == arr2.join();
+}
+function sortFunction(a, b) {
+    if (a[1] === b[1]) {
+        return 0;
+    }
+    else {
+        return (a[1] < b[1]) ? -1 : 1;
+    }
 }
