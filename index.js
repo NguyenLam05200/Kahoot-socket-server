@@ -1,7 +1,10 @@
 const express = require("express")
 var app = express();
-var server = app.listen(8080, () => {
-    console.log('listening on 8080');
+
+const port = process.env.PORT || 8080;
+
+var server = app.listen(port, () => {
+    console.log(`listening on ${port}`);
 });
 
 var io = require('socket.io')(server, {
@@ -10,7 +13,7 @@ var io = require('socket.io')(server, {
     }
 });
 
-const timeGetReady = 0; //2s
+const timeGetReady = 2000; //2s
 const timeReadQuestion = 2000;
 const pointStandard = 1000;
 
