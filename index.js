@@ -182,12 +182,15 @@ io.on('connection', (socket) => {
 
             const sumPlayers = roomPersist.listPlayers.size;
             roomPersist.listQuestions.map((eachQuestion, index) => {
-                if (eachQuestion.correctCount === -1) {
+                if ( eachQuestion.correctCount === -1) { //skip question
                     reportData.push([index, 101])
-                } else {
+                } else if(eachQuestion.correctCount > -1) {
                     tuTotal += eachQuestion.correctCount;
                     mauTotal += sumPlayers;
                     reportData.push([index, Math.floor(eachQuestion.correctCount * 100 / sumPlayers)])
+                } else { // no one correct
+                    mauTotal += sumPlayers;
+                    reportData.push([index, 0])
                 }
             })
 
