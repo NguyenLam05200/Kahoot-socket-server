@@ -37,7 +37,7 @@ function getRndInteger(min, max) {
 }
 
 io.on('connection', (socket) => {
-    console.log(`${socket.id} connected`);
+    // console.log(`${socket.id} connected`);
 
     socket.on('HAND_SHAKE', () => {
         io.to(socket.id).emit('HAND_SHAKE');
@@ -56,6 +56,30 @@ io.on('connection', (socket) => {
             newPin = getRndInteger(100000, 999999);
         }
         listPinCurrents.push(newPin);
+
+        // modify schema quiz:
+
+        listQuestions.map(eachQuestion => {
+            let ans = [];
+            let correctAns = [];
+            // if (eachQuestion.type === 0) {
+            //     eachQuestion.type = 'Quiz';
+            // } else if (eachQuestion.type === 1) {
+            //     eachQuestion.type = 'True or False'
+            // } else if (eachQuestion.type === 2) {
+            //     eachQuestion.type = 'Multi selections'
+            // }
+
+            eachQuestion.ans.map((eachAns, index) => {
+                ans.push(eachAns.text);
+                if (eachAns.isRight) {
+                    correctAns.push(index);
+                }
+            })
+            eachQuestion.ans = ans;
+            eachQuestion.correctAns = correctAns;
+        })
+
         listRoomKahuts.set(
             newPin,
             {
@@ -182,9 +206,9 @@ io.on('connection', (socket) => {
 
             const sumPlayers = roomPersist.listPlayers.size;
             roomPersist.listQuestions.map((eachQuestion, index) => {
-                if ( eachQuestion.correctCount === -1) { //skip question
+                if (eachQuestion.correctCount === -1) { //skip question
                     reportData.push([index, 101])
-                } else if(eachQuestion.correctCount > -1) {
+                } else if (eachQuestion.correctCount > -1) {
                     tuTotal += eachQuestion.correctCount;
                     mauTotal += sumPlayers;
                     reportData.push([index, Math.floor(eachQuestion.correctCount * 100 / sumPlayers)])
@@ -290,13 +314,20 @@ io.on('connection', (socket) => {
             const timestamp = Date.now();
 
             const len = roomKahut.listAnsReceived.length
+
+            let pointAnchor = 0;
+            if (questionCurrent.points === 1) {
+                pointAnchor = pointStandard;
+            } else if (questionCurrent.points === 2) {
+                pointAnchor = pointStandard * 2;
+            }
+
             if (len === 0) {
                 //first answer:
-                // io.to(socket.id).emit('RESULT', pointStandard)
-                roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: pointStandard });
+                roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: pointAnchor });
                 roomKahut.listQuestions[roomKahut.curQuestion].correctCount = 1;
             } else {
-                const point = Math.floor(pointStandard - (pointStandard / (questionCurrent.time * 1000)) * (timestamp - roomKahut.listAnsReceived[len - 1]))
+                const point = Math.floor(pointAnchor - (pointAnchor / (questionCurrent.time * 1000) * (timestamp - roomKahut.listAnsReceived[0])))
                 roomKahut.listEmit.push({ to: socket.id, type: 'CORRECT', scorePlus: point });
                 roomKahut.listQuestions[roomKahut.curQuestion].correctCount += 1;
             }
@@ -327,7 +358,7 @@ io.on('connection', (socket) => {
             }
             socket.leave(playerPin)
         }
-        console.log(`${socket.id} disconnected`);
+        // console.log(`${socket.id} disconnected`);
     });
 });
 
