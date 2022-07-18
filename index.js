@@ -4,7 +4,7 @@ var app = express();
 const port = process.env.PORT || 8080;
 
 var server = app.listen(port, () => {
-    console.log(`listening on ${port}`);
+    // console.log(`listening on ${port}`);
 });
 
 var io = require('socket.io')(server, {
@@ -37,8 +37,6 @@ function getRndInteger(min, max) {
 }
 
 io.on('connection', (socket) => {
-    // console.log(`${socket.id} connected`);
-
     socket.on('HAND_SHAKE', () => {
         io.to(socket.id).emit('HAND_SHAKE');
     });
@@ -209,7 +207,11 @@ io.on('connection', (socket) => {
 
             const sumPlayers = roomPersist.listPlayers.size;
             roomPersist.listQuestions.map((eachQuestion, index) => {
-                listCountChooseAns.push(eachQuestion.listCountChooseAns)
+                if (eachQuestion.listCountChooseAns) {
+                    listCountChooseAns.push(eachQuestion.listCountChooseAns)
+                } else {
+                    listCountChooseAns.push([])
+                }
 
                 if (eachQuestion.correctCount === -1) { //skip question
                     reportData.push([index, 101])
@@ -306,7 +308,6 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                socket.join(pinInput);
                 socket.pin = pinInput;
 
                 io.to(socket.id).emit('ENTER_PIN', { isRightPin: true, listQuestions: listQues });
@@ -320,6 +321,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('ENTER_NAME', (nameInput) => {
+        socket.join(socket.pin);
         listRoomKahuts.get(socket.pin).listPlayers.set(socket.id, { name: nameInput, score: 0, correctAns: [] })
         socket.name = nameInput;
         io.to(listRoomKahuts.get(socket.pin).hostId).emit('PLAYER_JOIN', { id: socket.id, name: nameInput })
