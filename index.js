@@ -134,6 +134,8 @@ io.on('connection', (socket) => {
     socket.on('SKIP', () => {
         const roomPersist = listRoomKahuts.get(socket.host);
         roomPersist.listQuestions[roomPersist.curQuestion].correctCount = -1;
+        roomPersist.listQuestions[roomPersist.curQuestion].inCorrectCount = -1;
+        roomPersist.listQuestions[roomPersist.curQuestion].listCountChooseAns = [];
         roomPersist.listEmit.map(eachEmi => {
             io.to(eachEmi.to).emit(eachEmi.type, eachEmi.scorePlus)
         })
@@ -203,15 +205,22 @@ io.on('connection', (socket) => {
             let tuTotal = 0;
             let mauTotal = 0;
             let percentRightTotal = 0;
+            let listCountChooseAns = [];
 
             const sumPlayers = roomPersist.listPlayers.size;
             roomPersist.listQuestions.map((eachQuestion, index) => {
+                listCountChooseAns.push(eachQuestion.listCountChooseAns)
+
                 if (eachQuestion.correctCount === -1) { //skip question
                     reportData.push([index, 101])
                 } else if (eachQuestion.correctCount > -1) {
                     tuTotal += eachQuestion.correctCount;
                     mauTotal += sumPlayers;
-                    reportData.push([index, Math.floor(eachQuestion.correctCount * 100 / sumPlayers)])
+                    if (eachQuestion.inCorrectCount) {
+                        reportData.push([index, Math.floor(eachQuestion.correctCount * 100 / (eachQuestion.correctCount + eachQuestion.inCorrectCount))])
+                    } else {
+                        reportData.push([index, 100]) //all correct
+                    }
                 } else { // no one correct
                     mauTotal += sumPlayers;
                     reportData.push([index, 0])
@@ -222,12 +231,21 @@ io.on('connection', (socket) => {
                 percentRightTotal = Math.floor(tuTotal * 100 / mauTotal)
             }
 
+            let reportDataAnalysis = [];
+            for (var [key, value] of mapPlayer.entries()) {
+                reportDataAnalysis.push(value)
+            }
+
             io.to(socket.id).emit(
                 'PREPARE_SUMARY',
                 {
                     rating: res,
                     reportData: reportData.sort(sortFunction),
-                    percentRightTotal: percentRightTotal
+                    percentRightTotal: percentRightTotal,
+                    listCountChooseAns: listCountChooseAns,
+                    players: reportDataAnalysis,
+                    timeStart: roomPersist.timeStart,
+                    timeEnd: Date.now()
                 })
 
             // prepare sumary for each player
@@ -248,7 +266,12 @@ io.on('connection', (socket) => {
     socket.on('PLAY_AGAIN', () => {
         // socket.to("room1").emit(/* ... */);
         const roomPersist = listRoomKahuts.get(socket.host)
-        roomPersist.listQuestions.filter(eachQuestion => delete eachQuestion.correctCount)
+        roomPersist.listQuestions.filter(eachQuestion => {
+            delete eachQuestion.correctCount;
+            delete eachQuestion.inCorrectCount;
+            delete eachQuestion.listCountChooseAns;
+
+        })
         roomPersist.timeStart = null
         roomPersist.acceptJoin = true
         roomPersist.curQuestion = 0
@@ -333,8 +356,21 @@ io.on('connection', (socket) => {
             }
             roomKahut.listAnsReceived.push(timestamp);
         } else {
+            if (roomKahut.listQuestions[roomKahut.curQuestion].inCorrectCount) {
+                roomKahut.listQuestions[roomKahut.curQuestion].inCorrectCount += 1;
+            } else {
+                roomKahut.listQuestions[roomKahut.curQuestion].inCorrectCount = 1;
+            }
             roomKahut.listEmit.push({ to: socket.id, type: 'INCORRECT', scorePlus: '' });
         }
+
+        if (!roomKahut.listQuestions[roomKahut.curQuestion].listCountChooseAns) {
+            roomKahut.listQuestions[roomKahut.curQuestion].listCountChooseAns = new Array(questionCurrent.ans.length).fill(0);
+        }
+
+        ans.map(eachAns => {
+            roomKahut.listQuestions[roomKahut.curQuestion].listCountChooseAns[eachAns] += 1;
+        })
     });
     // end action for player.
 
